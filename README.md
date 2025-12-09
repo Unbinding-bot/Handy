@@ -1,6 +1,3 @@
-# App_Name //App name goes here
+# Handy
 
-A new Flutter project
-
-## Getting Started
-Add stuff here
+A way to control your phone from a distance using your camera with gesture identification 

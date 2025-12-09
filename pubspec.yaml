@@ -1,5 +1,5 @@
-name: App_Name
-description: A new Flutter project.
+name: Handy
+description: A way to control the phone from a distance with the use of gestrue identification
 publish_to: 'none'
 
 version: 1.0.0+1
