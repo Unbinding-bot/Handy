@@ -1,43 +1,63 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:camera/camera.dart';
 
-void main() => runApp(MyApp());
+import 'controllers/app_controller.dart';
+import 'services/theme_service.dart'; // Import the new service
+import 'screens/home_screen.dart';
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      // Application name
-      title: 'Flutter Hello World',
-      // Application theme data, you can set the colors for the application as
-      // you want
-      theme: ThemeData(
-        // useMaterial3: false,
-        primarySwatch: Colors.blue,
-      ),
-      // A widget which will be started on application startup
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
-    );
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  List<CameraDescription> cameras = [];
+  try {
+    cameras = await availableCameras();
+  } catch (e) {
+    debugPrint("Camera initialization failed: $e");
   }
+
+  runApp(
+    MultiProvider(
+      providers: [
+        // 1. Logic Provider
+        ChangeNotifierProvider(create: (_) => AppController()),
+        // 2. Theme Provider
+        ChangeNotifierProvider(create: (_) => ThemeService()),
+      ],
+      child: GestureControlApp(cameras: cameras),
+    ),
+  );
 }
 
-class MyHomePage extends StatelessWidget {
-  final String title;
-  const MyHomePage({super.key, required this.title});  
+class GestureControlApp extends StatelessWidget {
+  final List<CameraDescription> cameras;
+  
+  const GestureControlApp({super.key, required this.cameras});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        // The title text which will be shown on the action bar
-        title: Text(title),
+    // Watch the ThemeService for changes
+    final themeService = context.watch<ThemeService>();
+    
+    return MaterialApp(
+      title: 'Gesture Controller',
+      debugShowCheckedModeBanner: false,
+      
+      // Use data from ThemeService
+      themeMode: themeService.themeMode,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: themeService.themeColor,
+        brightness: Brightness.light,
       ),
-      body: Center(
-        child: Text(
-          'Hello, World!',
-        ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: themeService.themeColor,
+        brightness: Brightness.dark,
       ),
+      
+      home: HomeScreen(cameras: cameras),
     );
   }
 }
