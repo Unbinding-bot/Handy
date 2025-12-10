@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:android_intent_plus/android_intent.dart'; 
+import 'package:android_intent_plus/android_intent_plus.dart';
 
 import '../controllers/app_controller.dart';
 import 'settings_screen.dart';
@@ -21,7 +21,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   CameraController? _cameraController;
   Timer? _simulationTimer;
-  // Hold the previously selected index to detect when we need to re-initialize the camera
   int _lastSelectedCameraIndex = 0; 
 
   @override
@@ -35,15 +34,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _initializeCamera(_lastSelectedCameraIndex);
     _startDemoSimulation(); // DEMO ONLY
   }
-  
-  // --- Camera Initialization and Switching Logic ---
+
+  // --- CAMERA INITIALIZATION AND SWITCHING ---
+
   Future<void> _initializeCamera(int cameraIndex) async {
     if (widget.cameras.isEmpty || cameraIndex >= widget.cameras.length) return;
 
-    // 1. Dispose of the old controller first
     await _cameraController?.dispose(); 
 
-    // 2. Select the camera based on the index (0 for front, 1 for back)
     final CameraDescription selectedCamera = widget.cameras[cameraIndex];
 
     _cameraController = CameraController(
@@ -52,9 +50,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       enableAudio: false,
     );
     try {
-      // 3. Initialize new controller
       await _cameraController!.initialize();
-      _lastSelectedCameraIndex = cameraIndex; // Update the check variable
+      _lastSelectedCameraIndex = cameraIndex;
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint("Camera error during initialization: $e");
@@ -64,22 +61,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 4. Listen for changes in the AppController's selectedCameraIndex
     final controller = context.watch<AppController>();
     if (controller.selectedCameraIndex != _lastSelectedCameraIndex) {
-      // Re-initialize camera only if the index has actually changed
       _initializeCamera(controller.selectedCameraIndex);
     }
   }
   
-  // --- Lifecycle and Permissions (Mostly unchanged, ensure correct imports) ---
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final appController = context.read<AppController>();
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       _cameraController?.dispose();
-      // Important: Also hide the preview and reverse the animation when pausing
       if (appController.isCameraPreviewVisible) {
         appController.toggleCameraPreview();
       }
@@ -87,12 +79,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _initializeCamera(appController.selectedCameraIndex);
     }
   }
-  
+
+  // --- PERMISSION AND UTILITY METHODS (FIXED) ---
+
   Future<void> _checkPermissions() async {
     if (!await Permission.camera.isGranted) {
       await Permission.camera.request();
     }
-    // ... (rest of permission check remains the same) ...
+    
+    // Mock check for accessibility (replace with real check in native code later)
     bool accessibilityEnabled = false; 
     
     if (!accessibilityEnabled && mounted) {
@@ -100,15 +95,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  // ... (_showPermissionPopup and _openAccessibilitySettings remain the same) ...
-  // ... (_startDemoSimulation remains the same) ...
-  // ... (dispose remains the same) ...
+  void _showPermissionPopup(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Required Permissions"),
+        content: const Text(
+          "To control your device, this app requires Accessibility and Overlay permissions.\n\n"
+          "Please enable them in Settings."
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Do Later"),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openAccessibilitySettings();
+            },
+            child: const Text("Do Now"),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Future<void> _openAccessibilitySettings() async {
+    final intent = AndroidIntent(action: 'android.settings.ACCESSIBILITY_SETTINGS');
+    await intent.launch();
+  }
+
+  // !!! DEMO ONLY: Simulates gestures for the UI (FIXED) !!!
+  void _startDemoSimulation() {
+    _simulationTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      final controller = context.read<AppController>();
+      if (!controller.isControlActive) return;
+
+      List<String> gestures = ["Swipe Left", "Swipe Right", "Pinch (Click)", "Holding", "Swipe Down"];
+      String randomGesture = (gestures..shuffle()).first;
+      
+      controller.simulateGesture(randomGesture, true);
+      
+      Future.delayed(const Duration(seconds: 1), () {
+        if(mounted) controller.simulateGesture("No hands detected", false);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraController?.dispose();
+    _simulationTimer?.cancel();
+    super.dispose();
+  }
+  
+  // --- BUILD METHOD ---
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<AppController>();
-    const double cameraPreviewHeight = 180.0; // Fixed height for the camera box
+    const double cameraPreviewHeight = 180.0;
 
     return Scaffold(
       body: Stack(
@@ -119,7 +168,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           
           // 2. Camera Preview Box (The box that shows above the controls)
           if (controller.isCameraPreviewVisible && _cameraController != null && _cameraController!.value.isInitialized)
-            // Use Positioned and AnimatedContainer to manage the size/animation appearance
             Positioned(
               top: 0,
               left: 0,
@@ -127,7 +175,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Container(
                 height: cameraPreviewHeight,
                 width: MediaQuery.of(context).size.width,
-                // Add padding and background for the "box" look
                 padding: const EdgeInsets.all(8.0),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerHigh,
@@ -142,7 +189,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: AspectRatio(
-                    // Fit the camera stream into the box
                     aspectRatio: _cameraController!.value.aspectRatio,
                     child: CameraPreview(_cameraController!),
                   ),
@@ -151,7 +197,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
 
           // 3. Main UI Layout (Animated to move down when camera is shown)
-          // Use AnimatedPositioned, controlled by the offset in AppController
           AnimatedPositioned(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
@@ -165,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ... (AppBar Row with Settings and Status remains the same) ...
+                    // ... AppBar Row with Settings and Status ...
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -207,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                     const Spacer(),
 
-                    // Control Toggle Button (remains the same)
+                    // Control Toggle Button
                     Center(
                       child: GestureDetector(
                         onTap: controller.toggleControl,
@@ -259,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                     const Spacer(),
 
-                    // Show Cursor/Camera Feed Controls (now uses subtitle for camera info)
+                    // Show Cursor/Camera Feed Controls
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -295,12 +340,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // 4. Fake Cursor Overlay (Demo) - remains the same
+          // 4. Fake Cursor Overlay (Demo)
           if (controller.isControlActive && controller.isCursorVisible)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 100),
-              left: controller.cursorPosition.dx - 15, // Center the cursor
-              top: controller.cursorPosition.dy - 15, // Center the cursor
+              left: controller.cursorPosition.dx - 15,
+              top: controller.cursorPosition.dy - 15,
               child: Container(
                 width: 30,
                 height: 30,
