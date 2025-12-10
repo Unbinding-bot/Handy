@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:android_intent_plus/android_intent_plus.dart'; // Corrected import
+import 'package:android_intent_plus/android_intent.dart'; 
 
 import '../controllers/app_controller.dart';
 import 'settings_screen.dart';
