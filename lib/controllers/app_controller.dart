@@ -1,4 +1,5 @@
-// lib/controllers/app_controller.dartimport 'package:flutter/material.dart';
+// lib/controllers/app_controller.dart
+import 'package:flutter/material.dart';
 
 class AppController extends ChangeNotifier {
   // --- App Logic State ---

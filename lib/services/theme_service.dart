@@ -1,4 +1,5 @@
-// lib/services/theme_service.dartimport 'package:flutter/material.dart';
+// lib/services/theme_service.dart
+import 'package:flutter/material.dart';
 
 class ThemeService extends ChangeNotifier {
   // --- Available Colors ---

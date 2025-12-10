@@ -1,4 +1,5 @@
-// lib/screens/settings_screen.dartimport 'package:flutter/material.dart';
+// lib/screens/settings_screen.dart
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:android_intent_plus/android_intent_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
