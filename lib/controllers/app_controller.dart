@@ -8,6 +8,10 @@ class AppController extends ChangeNotifier {
   final GestureChannelService _channelService = GestureChannelService();
   StreamSubscription? _gestureSubscription;
   
+  // --- Animation & Camera State (NEW) ---
+  double _cameraControlsVerticalOffset = 0.0; // Controls animation offset
+  int _selectedCameraIndex = 0; // 0 = Front (default), 1 = Back
+  
   // --- App Logic State ---
   bool _isControlActive = false;
   bool _isCursorVisible = true;
@@ -22,6 +26,11 @@ class AppController extends ChangeNotifier {
   bool get isControlActive => _isControlActive;
   bool get isCursorVisible => _isCursorVisible;
   bool get isCameraPreviewVisible => _isCameraPreviewVisible;
+  
+  // NEW GETTERS
+  double get cameraControlsVerticalOffset => _cameraControlsVerticalOffset;
+  int get selectedCameraIndex => _selectedCameraIndex; 
+  
   String get currentGestureText => _currentGestureText;
   bool get isHandDetected => _isHandDetected;
   Offset get cursorPosition => _cursorPosition;
@@ -29,7 +38,6 @@ class AppController extends ChangeNotifier {
 
   // --- Initialization and setup ---
   AppController(){
-
     _listenToNativeEvents();
   }
 
@@ -58,7 +66,6 @@ class AppController extends ChangeNotifier {
   }
 
 
-
   // --- Actions ---
 
   void toggleControl() {
@@ -67,7 +74,6 @@ class AppController extends ChangeNotifier {
       _channelService.startTracking(); // START NATIVE SERVICE
     } else {
       _channelService.stopTracking();  // STOP NATIVE SERVICE
-      // Reset status when turning off
       simulateGesture("Control Off", false);
     }
     notifyListeners();
@@ -78,11 +84,21 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // UPDATED: Now handles animation offset
   void toggleCameraPreview() {
     _isCameraPreviewVisible = !_isCameraPreviewVisible;
+    // Move controls down by 200.0 (the height of the camera box) when visible, 
+    // and back to 0.0 when hidden. This drives the animation in HomeScreen.
+    _cameraControlsVerticalOffset = _isCameraPreviewVisible ? 200.0 : 0.0;
     notifyListeners();
   }
 
+  // NEW: Setter for camera index, used in SettingsScreen
+  void setSelectedCamera(int index) {
+    _selectedCameraIndex = index;
+    notifyListeners();
+  }
+  
   void handleGesture(String gesture) {
     if (_isControlActive) {
       _channelService.performSystemAction(gesture);

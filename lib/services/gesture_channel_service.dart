@@ -1,3 +1,4 @@
+// lib/services/gesture_channel_service.dart
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart'; // For Offset and Rect
 
