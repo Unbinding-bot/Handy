@@ -54,7 +54,7 @@ class AppController extends ChangeNotifier {
     }, onError: (error) {
       debugPrint("Gesture Stream Error: $error");
       simulateGesture("Stream Error!", true); // Indicate error to user
-    })
+    });
   }
 
 
@@ -88,7 +88,7 @@ class AppController extends ChangeNotifier {
       _channelService.performSystemAction(gesture);
     }
   }
-  
+
   // --- Simulation Logic ---
   void simulateGesture(String gesture, bool handDetected) {
     _currentGestureText = gesture;
