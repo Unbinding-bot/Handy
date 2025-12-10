@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">
+        Enables Handy to perform system-level actions (clicks, swipes) based on your hand gestures.
+    </string>
+    
+    <string name="app_name">Handy</string>
+</resources>
