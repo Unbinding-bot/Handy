@@ -9,8 +9,7 @@ class AppController extends ChangeNotifier {
   StreamSubscription? _gestureSubscription;
   
   // --- Animation & Camera State (NEW) ---
-  double _cameraControlsVerticalOffset = 0.0; // Controls animation offset
-  int _selectedCameraIndex = 0; // 0 = Front (default), 1 = Back
+  int _selectedCameraIndex = 1; // 0 = Front (default), 1 = Back
   
   // --- App Logic State ---
   bool _isControlActive = false;
@@ -84,12 +83,10 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // UPDATED: Now handles animation offset
+  // UPDATED: Now not handles animation offset
   void toggleCameraPreview() {
     _isCameraPreviewVisible = !_isCameraPreviewVisible;
-    // Move controls down by 200.0 (the height of the camera box) when visible, 
-    // and back to 0.0 when hidden. This drives the animation in HomeScreen.
-    _cameraControlsVerticalOffset = _isCameraPreviewVisible ? 200.0 : 0.0;
+    // Removed: _cameraControlsVerticalOffset logic
     notifyListeners();
   }
 
