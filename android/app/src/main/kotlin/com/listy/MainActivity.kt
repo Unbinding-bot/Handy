@@ -3,6 +3,7 @@ package com.handy
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.handy.GestureAccessibilityService
 
 class MainActivity: FlutterActivity() {
     // 1. Define the unique channel name used by Dart

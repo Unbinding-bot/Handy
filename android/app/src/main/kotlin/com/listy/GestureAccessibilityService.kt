@@ -1,4 +1,4 @@
-package com.example.handy
+package com.handy
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
