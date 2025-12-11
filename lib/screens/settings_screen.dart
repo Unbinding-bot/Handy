@@ -36,7 +36,7 @@ class SettingsScreen extends StatelessWidget {
               ],
               onChanged: (int? newValue) {
                 if (newValue != null) {
-                  appController.setSelectedCamera(newValue);
+                  appController.setSelectedCameraIndex(newValue);
                 }
               },
             ),
