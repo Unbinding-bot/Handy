@@ -1,78 +1,39 @@
 // lib/controllers/app_controller.dart
 import 'package:flutter/material.dart';
-import 'dart:async';
-import '../services/gesture_channel_service.dart';
+import 'package:Handy/services/gesture_channel_service.dart'; // Import the new service
 
 class AppController extends ChangeNotifier {
+  // --- Services ---
+  final GestureChannelService _gestureService = GestureChannelService(); // Initialize the new service
 
-  final GestureChannelService _channelService = GestureChannelService();
-  StreamSubscription? _gestureSubscription;
-  
-  // --- Animation & Camera State (NEW) ---
-  int _selectedCameraIndex = 1; // 0 = Front (default), 1 = Back
-  
-  // --- App Logic State ---
+  // --- App State ---
   bool _isControlActive = false;
-  bool _isCursorVisible = true;
+  bool _isCursorVisible = false;
   bool _isCameraPreviewVisible = false;
-
-  // --- Status State (Gesture Data) ---
-  String _currentGestureText = "No hands detected";
+  int _selectedCameraIndex = 0; 
+  
+  // Hand/Gesture State (used for UI feedback)
   bool _isHandDetected = false;
-  Offset _cursorPosition = const Offset(100, 100);
+  String _currentGestureText = "OFF";
+  Offset _cursorPosition = const Offset(0, 0);
 
   // --- Getters ---
   bool get isControlActive => _isControlActive;
   bool get isCursorVisible => _isCursorVisible;
   bool get isCameraPreviewVisible => _isCameraPreviewVisible;
-  
-  // NEW GETTERS
   int get selectedCameraIndex => _selectedCameraIndex; 
   
-  String get currentGestureText => _currentGestureText;
   bool get isHandDetected => _isHandDetected;
+  String get currentGestureText => _currentGestureText;
   Offset get cursorPosition => _cursorPosition;
-
-
-  // --- Initialization and setup ---
-  AppController(){
-    _listenToNativeEvents();
-  }
-
-  @override
-  void dispose(){
-    _gestureSubscription?.cancel();
-    super.dispose();
-  }
-
-  // --- Stream Listener ---
-  void _listenToNativeEvents(){
-    // Subscribe
-    _gestureSubscription = _channelService.gestureEvents.listen((data) {
-      _currentGestureText = data['gesture'] ?? 'No Gesture';
-      _isHandDetected = data['isHandDetected'] ?? false;
-
-      if (_isHandDetected && data['cursorX'] != null && data['cursorY'] != null) {
-        // recieve coordinates
-        _cursorPosition = Offset(data['cursorX'], data['cursorY']);
-      }
-      notifyListeners();
-    }, onError: (error) {
-      debugPrint("Gesture Stream Error: $error");
-      simulateGesture("Stream Error!", true); // Indicate error to user
-    });
-  }
-
 
   // --- Actions ---
 
   void toggleControl() {
     _isControlActive = !_isControlActive;
-    if (_isControlActive) {
-      _channelService.startTracking(); // START NATIVE SERVICE
-    } else {
-      _channelService.stopTracking();  // STOP NATIVE SERVICE
-      simulateGesture("Control Off", false);
+    if (!_isControlActive) {
+      _currentGestureText = "OFF";
+      _isHandDetected = false;
     }
     notifyListeners();
   }
@@ -82,34 +43,87 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // UPDATED: Now not handles animation offset
   void toggleCameraPreview() {
     _isCameraPreviewVisible = !_isCameraPreviewVisible;
-    // Removed: _cameraControlsVerticalOffset logic
     notifyListeners();
   }
 
-  // NEW: Setter for camera index, used in SettingsScreen
-  void setSelectedCamera(int index) {
+  void setSelectedCameraIndex(int index) {
     _selectedCameraIndex = index;
     notifyListeners();
   }
   
-  void handleGesture(String gesture) {
-    if (_isControlActive) {
-      _channelService.performSystemAction(gesture);
+  // --- Core Gesture Logic (New) ---
+
+  /// Executes a system gesture based on computer vision result.
+  Future<void> executeGesture(String gestureType, Offset screenPosition) async {
+    if (!_isControlActive) return;
+
+    // Simulate the cursor movement for visual feedback
+    _cursorPosition = screenPosition;
+
+    // Convert Flutter logical pixels to Android physical pixels
+    // NOTE: In a real app, the vision model should output coordinates relative
+    // to the camera frame, which would then be mapped to the screen. 
+    // Here we use the Offset's DX/DY directly as a mock screen position.
+    final x = screenPosition.dx.round();
+    final y = screenPosition.dy.round();
+
+    bool success = false;
+    
+    switch (gestureType) {
+      case "Click":
+        success = await _gestureService.performClick(x, y);
+        break;
+      case "Swipe Left":
+        // Example: Swipe from the current cursor position to 100 pixels left
+        success = await _gestureService.performSwipe(
+          startX: x, 
+          startY: y, 
+          endX: x - 150, 
+          endY: y,
+          duration: 200,
+        );
+        break;
+      // Add other gestures here (Swipe Right, Up, Down, Long Press, etc.)
+      default:
+        // No system action required for this recognized gesture
+        break;
     }
-  }
 
-  // --- Simulation Logic ---
-  void simulateGesture(String gesture, bool handDetected) {
+    // Update UI based on execution status
+    if (success) {
+      print("Successfully executed: $gestureType at ($x, $y)");
+    } else {
+      // You can add logic here to show a toast or error if the gesture failed 
+      // (e.g., Accessibility service is not enabled).
+    }
+    
+    // For DEMO purposes, we will rely on simulateGesture for UI feedback below.
+  }
+  
+  // --- DEMO ONLY: Simulates incoming CV data and gesture execution ---
+  void simulateGesture(String gesture, bool isDetected) {
+    _isHandDetected = isDetected;
     _currentGestureText = gesture;
-    _isHandDetected = handDetected;
-    notifyListeners();
-  }
-
-  void updateCursorPosition(Offset newPos) {
-    _cursorPosition = newPos;
+    
+    if (isDetected && _isControlActive) {
+      // In a real app, this would be the actual CV output position
+      // For demo, we just use a random position if not set
+      if (_cursorPosition == const Offset(0, 0)) {
+        _cursorPosition = const Offset(400, 600); 
+      }
+      
+      // Execute the gesture from the demo
+      if (gesture == "Pinch (Click)") {
+        executeGesture("Click", _cursorPosition);
+      } else if (gesture == "Swipe Left") {
+        executeGesture("Swipe Left", _cursorPosition);
+      }
+      // Note: We don't execute all demo gestures for simplicity, 
+      // but the structure is ready.
+    }
+    
     notifyListeners();
   }
 }
