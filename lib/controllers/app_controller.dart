@@ -6,6 +6,10 @@ class AppController extends ChangeNotifier {
   // --- Services ---
   final GestureChannelService _gestureService = GestureChannelService(); // Initialize the new service
 
+  // asved preferences
+  static const _cursorVisibilityKey = 'isCursorVisible';
+  bool _isCursorVisible = false;
+
   // --- App State ---
   bool _isControlActive = false;
   bool _isCursorVisible = false;
@@ -29,18 +33,62 @@ class AppController extends ChangeNotifier {
 
   // --- Actions ---
 
+  AppController() {
+    loadSettings();
+  }
+
+  // --- Persistence Methods ---
+  
+  Future<void> loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // 1. Load Cursor Visibility State
+    _isCursorVisible = prefs.getBool(_cursorVisibilityKey) ?? false;
+    
+    // 2. If cursor was saved as visible, immediately turn on the native overlay service.
+    if (_isCursorVisible) {
+      // NOTE: We rely on the native service to handle the display
+      // We don't have a cursor position yet, but we enable the service.
+      _gestureService.toggleCursorVisibility(true); 
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> _saveCursorVisibility(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_cursorVisibilityKey, value);
+  }
+
   void toggleControl() {
     _isControlActive = !_isControlActive;
     if (!_isControlActive) {
+      if (_isCursorVisible) {
+        // Only call native to hide if it was visible
+        _gestureService.toggleCursorVisibility(false);
+      }
       _currentGestureText = "OFF";
       _isHandDetected = false;
+    } else {
+      if (_isCursorVisible) {
+            _gestureService.toggleCursorVisibility(true);
+        }
     }
     notifyListeners();
   }
 
   void toggleCursorVisibility(bool value) {
     _isCursorVisible = value;
-    _gestureService.toggleCursorVisibility(value); 
+    
+    // 1. Save the new state persistently
+    _saveCursorVisibility(value); 
+    
+    // 2. Control the native system overlay
+    // Only toggle the native service if the overall control (power button) is active
+    if (_isControlActive) {
+      _gestureService.toggleCursorVisibility(value);
+    }
+    
     notifyListeners();
   }
 
@@ -54,7 +102,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
   
-  // Inside AppController class (lib/controllers/app_controller.dart)
+  
 
   // --- Core Gesture Logic ---
   // NOTE: Ensure your existing 'executeGesture' is complete as shown here:

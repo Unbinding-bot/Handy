@@ -14,6 +14,7 @@ dependencies:
   camera: ^0.10.5
   permission_handler: ^11.3.1
   android_intent_plus: ^4.0.0 # For opening Accessibility settings
+  shared_preferences: ^2.2.3 # aur aur aur aur aur aur aur aur aur aur
 
 dev_dependencies:
   flutter_test:
