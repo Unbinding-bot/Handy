@@ -40,6 +40,7 @@ class AppController extends ChangeNotifier {
 
   void toggleCursorVisibility(bool value) {
     _isCursorVisible = value;
+    _gestureService.toggleCursorVisibility(value); 
     notifyListeners();
   }
 

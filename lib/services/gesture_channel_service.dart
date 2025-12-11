@@ -49,6 +49,33 @@ class GestureChannelService {
     }
   }
 
+  Future<bool> toggleCursorVisibility(bool show) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('toggleCursorVisibility', {
+        'show': show,
+      });
+      return result ?? false;
+    } on PlatformException catch (e) {
+      print("Failed to toggle cursor visibility: ${e.message}");
+      return false;
+    }
+  }
+
+  Future<bool> updateCursorPosition(int x, int y) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('updateCursorPosition', {
+        'x': x,
+        'y': y,
+      });
+      return result ?? false;
+    } on PlatformException catch (e) {
+      // This happens frequently during normal operation if the service is stopped, 
+      // so it might not need logging unless it fails when expected to be running.
+      // print("Failed to update cursor position: ${e.message}"); 
+      return false;
+    }
+  }
+  
   /// Checks if the native Accessibility Service is running and active.
   Future<bool> isServiceEnabled() async {
     try {

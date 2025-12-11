@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:android_intent_plus/android_intent.dart'; 
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:flutter/foundation.dart';
 
 import '../controllers/app_controller.dart';
 import 'settings_screen.dart';
@@ -21,15 +22,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   CameraController? _cameraController;
   Timer? _simulationTimer;
-  int _lastSelectedCameraIndex = 0; 
+  int _lastSelectedCameraIndex = 0;
 
-  // ... (initState, _initializeCamera, didChangeDependencies, didChangeAppLifecycleState are unchanged) ...
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkPermissions();
-    
+    _checkPermissionsAndSetup(); // Updated permission check method
+
     _lastSelectedCameraIndex = context.read<AppController>().selectedCameraIndex;
     _initializeCamera(_lastSelectedCameraIndex);
     _startDemoSimulation(); // DEMO ONLY
@@ -38,12 +38,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _initializeCamera(int cameraIndex) async {
     if (widget.cameras.isEmpty || cameraIndex >= widget.cameras.length) return;
 
-    await _cameraController?.dispose(); 
+    await _cameraController?.dispose();
 
     final CameraDescription selectedCamera = widget.cameras[cameraIndex];
 
     _cameraController = CameraController(
-      selectedCamera, 
+      selectedCamera,
       ResolutionPreset.medium,
       enableAudio: false,
     );
@@ -64,28 +64,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _initializeCamera(controller.selectedCameraIndex);
     }
   }
-  
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final appController = context.read<AppController>();
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       _cameraController?.dispose();
+      // Also hide the native overlay cursor when the app is backgrounded/paused
+      appController.toggleCursorVisibility(false);
     } else if (state == AppLifecycleState.resumed) {
       _initializeCamera(appController.selectedCameraIndex);
+      // Re-enable the cursor if it was active when the app paused
+      if (appController.isCursorVisible) {
+          appController.toggleCursorVisibility(true);
+      }
     }
   }
 
-  // ... (Permission and Utility Methods are unchanged) ...
-  Future<void> _checkPermissions() async {
+  // --- Permission and Utility Methods ---
+
+  Future<void> _checkPermissionsAndSetup() async {
+    // 1. Camera Permission
     if (!await Permission.camera.isGranted) {
       await Permission.camera.request();
     }
-    
-    // Mock check for accessibility (replace with real check in native code later)
-    bool accessibilityEnabled = false; 
-    
-    if (!accessibilityEnabled && mounted) {
-      _showPermissionPopup(context);
+
+    // 2. Overlay Permission (SYSTEM_ALERT_WINDOW)
+    // NOTE: This is required for the system-wide cursor to work!
+    bool overlayEnabled = await Permission.systemAlertWindow.isGranted;
+
+    // 3. Accessibility Service Check (MOCK)
+    // NOTE: In a real app, this should check the native state via MethodChannel
+    bool accessibilityEnabled = false;
+
+    if (!accessibilityEnabled || !overlayEnabled) {
+      if (mounted) {
+        _showPermissionPopup(context);
+      }
     }
   }
 
@@ -96,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (ctx) => AlertDialog(
         title: const Text("Required Permissions"),
         content: const Text(
-          "To control your device, this app requires Accessibility and Overlay permissions.\n\n"
+          "To control your device, this app requires Accessibility and Overlay (Draw over other apps) permissions.\n\n"
           "Please enable them in Settings."
         ),
         actions: [
@@ -107,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _openAccessibilitySettings();
+              _openRequiredSettings();
             },
             child: const Text("Do Now"),
           ),
@@ -116,23 +131,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _openAccessibilitySettings() async {
-    final intent = AndroidIntent(action: 'android.settings.ACCESSIBILITY_SETTINGS');
-    await intent.launch();
+  Future<void> _openRequiredSettings() async {
+    // Open Accessibility Settings
+    final accessibilityIntent = AndroidIntent(action: 'android.settings.ACCESSIBILITY_SETTINGS');
+    await accessibilityIntent.launch();
+
+    // Check for Overlay permission and request if needed (API 23+)
+    if (await Permission.systemAlertWindow.isDenied) {
+        // This launches the "Display over other apps" screen for your app
+        await openAppSettings();
+    }
   }
 
-  // !!! DEMO ONLY: Simulates gestures for the UI (unchanged) !!!
+  // !!! DEMO ONLY: Simulates gestures for the UI !!!
   void _startDemoSimulation() {
-    _simulationTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    _simulationTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
       final controller = context.read<AppController>();
       if (!controller.isControlActive) return;
 
       List<String> gestures = ["Swipe Left", "Swipe Right", "Pinch (Click)", "Holding", "Swipe Down"];
       String randomGesture = (gestures..shuffle()).first;
-      
+
+      // Simulate hand detected for a short period
       controller.simulateGesture(randomGesture, true);
-      
-      Future.delayed(const Duration(seconds: 1), () {
+
+      Future.delayed(const Duration(milliseconds: 500), () {
         if(mounted) controller.simulateGesture("No hands detected", false);
       });
     });
@@ -145,8 +168,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _simulationTimer?.cancel();
     super.dispose();
   }
-  
-  // --- BUILD METHOD (MODIFIED) ---
+
+  // --- BUILD METHOD ---
 
   @override
   Widget build(BuildContext context) {
@@ -156,21 +179,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       body: Stack(
         children: [
           // 1. Full Screen Background
-          // Show solid color if camera is off, or if camera fails to initialize
           if (!controller.isCameraPreviewVisible)
              Container(color: Theme.of(context).colorScheme.surface),
-             
+
           // 2. Camera Layer (Full Screen Background with BoxFit.contain)
           if (controller.isCameraPreviewVisible && _cameraController != null && _cameraController!.value.isInitialized)
             SizedBox.expand(
               child: FittedBox(
                 // Use BoxFit.contain to ensure the camera feed fits without being cut.
-                fit: BoxFit.contain, 
+                fit: BoxFit.contain,
                 child: SizedBox(
-                  // We swap width and height here to correctly display the aspect 
-                  // ratio in the Flutter widget's internal space.
-                  width: _cameraController!.value.size.height,
-                  height: _cameraController!.value.size.width,
+                  // FIX: Use previewSize and swap height/width for correct aspect ratio.
+                  width: _cameraController!.value.previewSize!.height,
+                  height: _cameraController!.value.previewSize!.width,
                   child: CameraPreview(_cameraController!),
                 ),
               ),
@@ -235,13 +256,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         height: 180,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: controller.isControlActive 
-                              ? Theme.of(context).colorScheme.primary 
+                          color: controller.isControlActive
+                              ? Theme.of(context).colorScheme.primary
                               : Theme.of(context).colorScheme.surfaceContainerHighest,
                           boxShadow: [
                             BoxShadow(
-                              color: controller.isControlActive 
-                                  ? Theme.of(context).colorScheme.primary.withOpacity(0.4) 
+                              color: controller.isControlActive
+                                  ? Theme.of(context).colorScheme.primary.withOpacity(0.4)
                                   : Colors.transparent,
                               blurRadius: 30,
                               spreadRadius: 5,
@@ -254,8 +275,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Icon(
                               Icons.power_settings_new,
                               size: 60,
-                              color: controller.isControlActive 
-                                  ? Theme.of(context).colorScheme.onPrimary 
+                              color: controller.isControlActive
+                                  ? Theme.of(context).colorScheme.onPrimary
                                   : Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                             const SizedBox(height: 10),
@@ -264,8 +285,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: controller.isControlActive 
-                                  ? Theme.of(context).colorScheme.onPrimary 
+                                color: controller.isControlActive
+                                  ? Theme.of(context).colorScheme.onPrimary
                                   : Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             )
@@ -274,9 +295,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  
-                  // NOTE: The camera feed box is REMOVED from the Column
-                  // The camera feed now uses the whole screen space in the Stack background.
 
                   const Spacer(), // Pushes Control Box to the bottom
 
@@ -291,8 +309,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       children: [
                          SwitchListTile(
                           title: const Text("Show Cursor"),
-                          // The `onChanged` function is kept, but the cursor overlay (Item 4) 
-                          // will be removed below to fix the issue where it shouldn't show.
                           value: controller.isCursorVisible,
                           onChanged: controller.toggleCursorVisibility,
                           secondary: const Icon(Icons.mouse),
@@ -301,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         SwitchListTile(
                           title: const Text("Show Camera Feed"),
                           subtitle: Text(
-                            controller.isCameraPreviewVisible 
+                            controller.isCameraPreviewVisible
                               ? "Showing ${controller.selectedCameraIndex == 0 ? 'Front' : 'Back'} Camera"
                               : "View what the app sees"
                           ),
@@ -317,15 +333,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // lib/screens/home_screen.dart (inside the build method, at the end of the Stack's children list)
-
-          // 4. Fake Cursor Overlay (RE-ADDED)
-          // This allows the cursor to be drawn over all other UI elements.
+          // 4. Flutter Cursor Overlay (RE-ADDED)
+          // This cursor is only visible INSIDE the app window, used for quick feedback.
           if (controller.isControlActive && controller.isCursorVisible)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 100),
-              // Use device pixel ratio for correct placement if cursorPosition
-              // was calculated using logical pixels (as is standard in Flutter)
+              // We use dx/dy directly as they represent logical Flutter pixels
               left: controller.cursorPosition.dx - 15,
               top: controller.cursorPosition.dy - 15,
               child: Container(

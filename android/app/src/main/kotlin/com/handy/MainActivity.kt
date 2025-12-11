@@ -29,6 +29,17 @@ class MainActivity: FlutterActivity() {
 
             // 2. Handle incoming method calls from Dart
             when (call.method) {
+                "toggleCursorVisibility" -> { 
+                    val show = call.argument<Boolean>("show") ?: false
+                    service.toggleCursorVisibility(show)
+                    result.success(true)
+                }
+                "updateCursorPosition" -> { 
+                    val x = call.argument<Int>("x") ?: 0
+                    val y = call.argument<Int>("y") ?: 0
+                    service.updateCursorPosition(x, y)
+                    result.success(true)
+                }
                 "performSwipe" -> {
                     val startX = call.argument<Int>("startX") ?: 0
                     val startY = call.argument<Int>("startY") ?: 0

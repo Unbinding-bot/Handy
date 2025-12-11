@@ -11,6 +11,14 @@ import android.widget.Toast
 
 class GestureAccessibilityService : AccessibilityService() {
 
+    private lateinit var overlayManager: OverlayManager
+
+
+    override fun onCreate() {
+        super.onCreate()
+        overlayManager = OverlayManager(this) // Initialize the manager
+    }
+
     // 1. Lifecycle: When the service is successfully connected
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -34,6 +42,20 @@ class GestureAccessibilityService : AccessibilityService() {
     // 4. Interrupt: Required method
     override fun onInterrupt() {
         // Called when the system wants to interrupt the service's feedback.
+    }
+
+    fun toggleCursorVisibility(show: Boolean) {
+        if (show) {
+            overlayManager.showOverlay()
+        } else {
+            overlayManager.hideOverlay()
+        }
+    }
+    
+    fun updateCursorPosition(x: Int, y: Int) {
+        if (overlayManager.isVisible()) {
+            overlayManager.updatePosition(x, y)
+        }
     }
 
     // --- Gesture Execution Methods (Called from Flutter via MainActivity) ---
