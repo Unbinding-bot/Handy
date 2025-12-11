@@ -23,19 +23,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _simulationTimer;
   int _lastSelectedCameraIndex = 0; 
 
+  // ... (initState, _initializeCamera, didChangeDependencies, didChangeAppLifecycleState are unchanged) ...
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkPermissions();
     
-    // Initialize with the default camera (index 0) from the controller
     _lastSelectedCameraIndex = context.read<AppController>().selectedCameraIndex;
     _initializeCamera(_lastSelectedCameraIndex);
     _startDemoSimulation(); // DEMO ONLY
   }
-
-  // --- CAMERA INITIALIZATION AND SWITCHING (unchanged) ---
 
   Future<void> _initializeCamera(int cameraIndex) async {
     if (widget.cameras.isEmpty || cameraIndex >= widget.cameras.length) return;
@@ -76,9 +74,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _initializeCamera(appController.selectedCameraIndex);
     }
   }
-  
-  // --- PERMISSION AND UTILITY METHODS (unchanged) ---
 
+  // ... (Permission and Utility Methods are unchanged) ...
   Future<void> _checkPermissions() async {
     if (!await Permission.camera.isGranted) {
       await Permission.camera.request();
@@ -160,18 +157,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [
           // 1. Full Screen Background
           // Show solid color if camera is off, or if camera fails to initialize
-          if (!controller.isCameraPreviewVisible || _cameraController == null || !_cameraController!.value.isInitialized)
+          if (!controller.isCameraPreviewVisible)
              Container(color: Theme.of(context).colorScheme.surface),
+             
+          // 2. Camera Layer (Full Screen Background with BoxFit.contain)
+          if (controller.isCameraPreviewVisible && _cameraController != null && _cameraController!.value.isInitialized)
+            SizedBox.expand(
+              child: FittedBox(
+                // Use BoxFit.contain to ensure the camera feed fits without being cut.
+                fit: BoxFit.contain, 
+                child: SizedBox(
+                  // We swap width and height here to correctly display the aspect 
+                  // ratio in the Flutter widget's internal space.
+                  width: _cameraController!.value.size.height,
+                  height: _cameraController!.value.size.width,
+                  child: CameraPreview(_cameraController!),
+                ),
+              ),
+            ),
 
-          // 2. Main UI Layout (Fixed position over the background/camera)
-          // We remove AnimatedPositioned and top: controller.cameraControlsVerticalOffset
+          // 3. Main UI Layout (Fixed position over the camera feed)
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2.1. TOP BAR (Settings and Status)
+                  // 3.1. TOP BAR (Settings and Status)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -213,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                   const Spacer(), // Pushes Power Button to the center/middle area
 
-                  // 2.2. CONTROL TOGGLE BUTTON
+                  // 3.2. CONTROL TOGGLE BUTTON
                   Center(
                     child: GestureDetector(
                       onTap: controller.toggleControl,
@@ -262,42 +274,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
+                  
+                  // NOTE: The camera feed box is REMOVED from the Column
+                  // The camera feed now uses the whole screen space in the Stack background.
 
-                  const SizedBox(height: 24), // Spacing after the power button
+                  const Spacer(), // Pushes Control Box to the bottom
 
-                  // 2.3. NEW: CAMERA FEED DISPLAY (Original Aspect Ratio)
-                  if (controller.isCameraPreviewVisible && _cameraController != null && _cameraController!.value.isInitialized)
-                    Flexible(
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 24.0), // Space before the control box
-                        decoration: BoxDecoration(
-                          color: Colors.black, // Dark background for the camera
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.5), width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.5), 
-                              blurRadius: 10, 
-                              spreadRadius: 2
-                            )
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(15),
-                          child: AspectRatio(
-                            aspectRatio: _cameraController!.value.aspectRatio,
-                            child: CameraPreview(_cameraController!),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // Removed the second Spacer() as the Flexible widget handles remaining space
-                  // We add a Spacer() if the camera feed is NOT visible to keep the control box down
-                  if (!controller.isCameraPreviewVisible) const Spacer(),
-
-
-                  // 2.4. SHOW CURSOR/CAMERA FEED CONTROLS
+                  // 3.3. SHOW CURSOR/CAMERA FEED CONTROLS
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -308,6 +291,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       children: [
                          SwitchListTile(
                           title: const Text("Show Cursor"),
+                          // The `onChanged` function is kept, but the cursor overlay (Item 4) 
+                          // will be removed below to fix the issue where it shouldn't show.
                           value: controller.isCursorVisible,
                           onChanged: controller.toggleCursorVisibility,
                           secondary: const Icon(Icons.mouse),
@@ -332,10 +317,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // 3. Fake Cursor Overlay (Demo) - remains the same
+          // lib/screens/home_screen.dart (inside the build method, at the end of the Stack's children list)
+
+          // 4. Fake Cursor Overlay (RE-ADDED)
+          // This allows the cursor to be drawn over all other UI elements.
           if (controller.isControlActive && controller.isCursorVisible)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 100),
+              // Use device pixel ratio for correct placement if cursorPosition
+              // was calculated using logical pixels (as is standard in Flutter)
               left: controller.cursorPosition.dx - 15,
               top: controller.cursorPosition.dy - 15,
               child: Container(

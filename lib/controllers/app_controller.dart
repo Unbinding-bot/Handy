@@ -53,77 +53,79 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
   
-  // --- Core Gesture Logic (New) ---
+  // Inside AppController class (lib/controllers/app_controller.dart)
 
-  /// Executes a system gesture based on computer vision result.
-  Future<void> executeGesture(String gestureType, Offset screenPosition) async {
-    if (!_isControlActive) return;
+// --- Core Gesture Logic ---
+// NOTE: Ensure your existing 'executeGesture' is complete as shown here:
+Future<void> executeGesture(String gestureType, Offset screenPosition) async {
+  if (!_isControlActive) return;
 
-    // Simulate the cursor movement for visual feedback
-    _cursorPosition = screenPosition;
+  _cursorPosition = screenPosition; // Update cursor position
 
-    // Convert Flutter logical pixels to Android physical pixels
-    // NOTE: In a real app, the vision model should output coordinates relative
-    // to the camera frame, which would then be mapped to the screen. 
-    // Here we use the Offset's DX/DY directly as a mock screen position.
-    final x = screenPosition.dx.round();
-    final y = screenPosition.dy.round();
+  // Convert to physical pixels (or use as is for simulation)
+  final x = screenPosition.dx.round();
+  final y = screenPosition.dy.round();
 
-    bool success = false;
-    
-    switch (gestureType) {
-      case "Click":
-        success = await _gestureService.performClick(x, y);
-        break;
-      case "Swipe Left":
-        // Example: Swipe from the current cursor position to 100 pixels left
-        success = await _gestureService.performSwipe(
-          startX: x, 
-          startY: y, 
-          endX: x - 150, 
-          endY: y,
-          duration: 200,
-        );
-        break;
-      // Add other gestures here (Swipe Right, Up, Down, Long Press, etc.)
-      default:
-        // No system action required for this recognized gesture
-        break;
+  bool success = false;
+  
+  switch (gestureType) {
+    case "Pinch (Click)": // Click/Tap
+    case "Holding": // Often treated as a long press or click in simplified demos
+      success = await _gestureService.performClick(x, y);
+      break;
+    case "Swipe Left":
+      success = await _gestureService.performSwipe(
+        startX: x, 
+        startY: y, 
+        endX: x - 200, // Move 200 pixels left
+        endY: y,
+        duration: 200,
+      );
+      break;
+    case "Swipe Right":
+      success = await _gestureService.performSwipe(
+        startX: x, 
+        startY: y, 
+        endX: x + 200, // Move 200 pixels right
+        endY: y,
+        duration: 200,
+      );
+      break;
+    case "Swipe Down":
+      success = await _gestureService.performSwipe(
+        startX: x, 
+        startY: y, 
+        endX: x, 
+        endY: y + 200, // Move 200 pixels down
+        duration: 200,
+      );
+      break;
+    default:
+      break;
+  }
+}
+
+// --- DEMO ONLY: Simulates incoming CV data and gesture execution ---
+void simulateGesture(String gesture, bool isDetected) {
+  _isHandDetected = isDetected;
+  _currentGestureText = gesture;
+  
+  if (isDetected && _isControlActive) {
+    // Generate a new mock position or use the current one
+    if (_cursorPosition == const Offset(0, 0)) {
+      // Use the center of the screen as a default start position for the demo
+      _cursorPosition = Offset(
+        WidgetsBinding.instance.window.physicalSize.width / (2 * WidgetsBinding.instance.window.devicePixelRatio),
+        WidgetsBinding.instance.window.physicalSize.height / (2 * WidgetsBinding.instance.window.devicePixelRatio),
+      ); 
     }
-
-    // Update UI based on execution status
-    if (success) {
-      print("Successfully executed: $gestureType at ($x, $y)");
-    } else {
-      // You can add logic here to show a toast or error if the gesture failed 
-      // (e.g., Accessibility service is not enabled).
-    }
     
-    // For DEMO purposes, we will rely on simulateGesture for UI feedback below.
+    // Call the real execution function for the detected gesture
+    executeGesture(gesture, _cursorPosition);
+  } else {
+    // When no hand is detected, we don't execute a gesture.
+    // The previous state update (e.g., cursor position) is enough.
   }
   
-  // --- DEMO ONLY: Simulates incoming CV data and gesture execution ---
-  void simulateGesture(String gesture, bool isDetected) {
-    _isHandDetected = isDetected;
-    _currentGestureText = gesture;
-    
-    if (isDetected && _isControlActive) {
-      // In a real app, this would be the actual CV output position
-      // For demo, we just use a random position if not set
-      if (_cursorPosition == const Offset(0, 0)) {
-        _cursorPosition = const Offset(400, 600); 
-      }
-      
-      // Execute the gesture from the demo
-      if (gesture == "Pinch (Click)") {
-        executeGesture("Click", _cursorPosition);
-      } else if (gesture == "Swipe Left") {
-        executeGesture("Swipe Left", _cursorPosition);
-      }
-      // Note: We don't execute all demo gestures for simplicity, 
-      // but the structure is ready.
-    }
-    
-    notifyListeners();
-  }
+  notifyListeners();
 }
