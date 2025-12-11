@@ -27,7 +27,6 @@ class AppController extends ChangeNotifier {
   bool get isCameraPreviewVisible => _isCameraPreviewVisible;
   
   // NEW GETTERS
-  double get cameraControlsVerticalOffset => _cameraControlsVerticalOffset;
   int get selectedCameraIndex => _selectedCameraIndex; 
   
   String get currentGestureText => _currentGestureText;
